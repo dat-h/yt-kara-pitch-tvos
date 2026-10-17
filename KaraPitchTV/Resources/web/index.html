@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0b14">
+  <title>Karaoke Queue</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="offline" class="banner" hidden>Can't reach the TV. Retrying…</div>
+
+  <header class="top">
+    <h1>Karaoke</h1>
+    <span class="bar"></span>
+  </header>
+
+  <main>
+    <section class="card singer-card">
+      <label class="field">
+        <span>Who's singing?</span>
+        <input id="singer" type="text" maxlength="40" placeholder="Your name" autocomplete="nickname">
+      </label>
+      <p class="dim small">Used for songs you add from search or from a link.</p>
+    </section>
+
+    <section class="card search">
+      <h2>Search YouTube</h2>
+      <form id="searchForm" class="search-row" autocomplete="off">
+        <input id="q" type="search" enterkeyhint="search" placeholder="Song or artist">
+        <button type="submit" class="ghost">Search</button>
+      </form>
+      <label class="check"><input id="karaoke" type="checkbox" checked> Add “karaoke” to the search</label>
+      <p id="searchStatus" class="dim small" hidden></p>
+      <ul id="results" class="results"></ul>
+      <p class="dim small">Results are added with your name above and the key below.</p>
+    </section>
+
+    <form id="add" class="card add" autocomplete="off">
+      <h2>Key, or paste a link</h2>
+      <label class="field">
+        <span>YouTube link</span>
+        <div class="paste-row">
+          <input id="url" type="url" inputmode="url" placeholder="https://youtu.be/…">
+          <button type="button" id="paste" class="ghost" hidden>Paste</button>
+        </div>
+      </label>
+      <div class="field">
+        <span>Key</span>
+        <div class="stepper" data-for="addKey">
+          <button type="button" data-step="-1" aria-label="Lower key">−</button>
+          <output id="addKey" data-value="0">Original</output>
+          <button type="button" data-step="1" aria-label="Raise key">+</button>
+        </div>
+      </div>
+      <p id="addError" class="error" hidden></p>
+      <button type="submit" class="primary" id="addBtn">Add to queue</button>
+    </form>
+
+    <section id="now" class="card now" hidden>
+      <h2>Now singing</h2>
+      <div class="now-body">
+        <img id="nowThumb" alt="">
+        <div class="now-text">
+          <div id="nowSinger" class="singer"></div>
+          <div id="nowTitle" class="title"></div>
+          <div class="progress"><div id="nowBar"></div></div>
+          <div id="nowTime" class="dim small"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="queue-section">
+      <h2>Queue <span id="count" class="dim"></span></h2>
+      <p id="upnext" class="upnext" hidden></p>
+      <ol id="queue" class="queue"></ol>
+      <p id="empty" class="dim empty">The queue is empty. Add the first song!</p>
+    </section>
+  </main>
+
+  <nav class="reactions" aria-label="Audience reactions">
+    <button type="button" id="reactionsToggle" class="reactions-toggle" aria-expanded="false" aria-controls="reactionButtons">
+      <span aria-hidden="true">🎉</span>Reactions
+    </button>
+    <div id="reactionButtons" class="reaction-buttons" hidden>
+      <button type="button" data-reaction="clap"><span aria-hidden="true">👏</span>Clap</button>
+      <button type="button" data-reaction="ovation"><span aria-hidden="true">🙌</span>Ovation</button>
+      <button type="button" data-reaction="boo"><span aria-hidden="true">👎</span>Booo</button>
+      <button type="button" data-reaction="laugh"><span aria-hidden="true">😂</span>Laugh</button>
+    </div>
+  </nav>
+
+  <template id="result">
+    <li class="result">
+      <img class="thumb" alt="">
+      <div class="info">
+        <div class="title"></div>
+        <div class="meta"><span class="channel"></span><span class="chip len"></span></div>
+      </div>
+      <button class="add-result">Add</button>
+    </li>
+  </template>
+
+  <template id="row">
+    <li class="row">
+      <img class="thumb" alt="">
+      <div class="info">
+        <div class="title"></div>
+        <div class="meta"><span class="singer"></span><span class="chip key"></span><span class="status"></span></div>
+      </div>
+      <div class="actions">
+        <button class="icon up" aria-label="Move up">▲</button>
+        <button class="icon down" aria-label="Move down">▼</button>
+        <button class="icon edit" aria-label="Edit">✎</button>
+        <button class="icon remove" aria-label="Remove">✕</button>
+      </div>
+    </li>
+  </template>
+
+  <dialog id="editDialog">
+    <form method="dialog" class="edit-form">
+      <h2>Edit entry</h2>
+      <p id="editTitle" class="dim"></p>
+      <label class="field">
+        <span>Singer</span>
+        <input id="editSinger" type="text" maxlength="40">
+      </label>
+      <div class="field">
+        <span>Key</span>
+        <div class="stepper" data-for="editKey">
+          <button type="button" data-step="-1" aria-label="Lower key">−</button>
+          <output id="editKey" data-value="0">Original</output>
+          <button type="button" data-step="1" aria-label="Raise key">+</button>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button value="cancel" class="ghost">Cancel</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
