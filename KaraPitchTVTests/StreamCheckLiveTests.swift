@@ -8,6 +8,41 @@ import Testing
 /// does AVFoundation load its video track in time? Run with `sh scripts/check-stream.sh <url>`.
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["KARA_CHECK_URL"] != nil), .timeLimit(.minutes(2)))
 struct StreamCheckLiveTests {
+    /// With `--music`: the music video the app would pair with this karaoke video, and the runners-up.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["KARA_CHECK_MUSIC"] == "1"))
+    func findsTheMusicVideo() async throws {
+        let env = ProcessInfo.processInfo.environment
+        var report: [String] = []
+        defer {
+            let text = report.joined(separator: "\n") + "\n"
+            if let out = env["KARA_CHECK_OUT"] { try? text.write(toFile: out, atomically: true, encoding: .utf8) }
+        }
+        let url = env["KARA_CHECK_URL"] ?? ""
+        let api = InnerTubeAPI()
+        let resolver = StreamResolver(api: api)
+        guard let normalized = YouTubeURL.normalize(url), let id = YouTubeURL.videoID(of: url),
+            let meta = try? await resolver.resolveWithMeta(videoID: id).meta
+        else {
+            report.append("❌ couldn't resolve the karaoke video \(url)")
+            Issue.record("karaoke video didn't resolve")
+            return
+        }
+        var entry = QueueEntry(id: "check", url: normalized)
+        entry.title = meta.title
+        entry.durationSec = meta.durationSec
+        report.append("karaoke: \(meta.title) (\(meta.durationSec) s)")
+        report.append("search: \(MusicVideoMatcher.searchQuery(fromKaraokeTitle: meta.title))")
+
+        let finder = MusicVideoFinder(api: api, resolver: resolver, cache: StreamCache())
+        let candidates = try await finder.candidates(for: entry)
+        for (i, c) in candidates.enumerated() { report.append("  \(i + 1). \(c.id) \(c.title) · \(c.channel) · \(c.durationSec) s") }
+        if let video = await finder.find(for: entry) {
+            report.append("✅ music video: \(video.title) · \(video.channel ?? "") · \(video.url)")
+        } else {
+            report.append("➖ no music video: the song would play as plain karaoke")
+        }
+    }
+
     static let loadTimeout: Duration = .seconds(20)
 
     @Test func resolvesAndLoads() async throws {

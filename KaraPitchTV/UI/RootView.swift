@@ -35,7 +35,7 @@ private struct PlayerScreen: View {
         let snapshot = session.player.snapshot
         ZStack {
             PlayerHost(
-                player: session.player, backdrop: session.backdrop.player, backgroundOn: session.backgroundVideoOn,
+                player: session.player, backdrop: session.backdrop.player, backgroundOn: session.backgroundVideoOn && session.backdrop.isReady,
                 takesFocus: !controlsOpen, onAction: handle
             )
             .ignoresSafeArea()

@@ -74,9 +74,25 @@ enum StreamResolverError: Error, CustomStringConvertible {
             "No playable MP4 stream for \(videoID): \(attempts.joined(separator: "; "))"
         }
     }
+
+    /// Why the video can't be played, for the people at the party.
+    var reason: String {
+        switch self {
+        case let .noPlayableStream(_, attempts):
+            if !attempts.isEmpty && attempts.allSatisfy({ $0.contains("signInRequired") }) {
+                "YouTube needs sign-in for this video (age-restricted)"
+            } else if attempts.contains(where: { $0.contains("no direct") }) {
+                "YouTube doesn't offer a playable version"
+            } else if attempts.contains(where: { $0.contains("unavailable") }) {
+                "This video is unavailable"
+            } else {
+                "Couldn't reach YouTube"
+            }
+        }
+    }
 }
 
-/// Resolved fresh for every play: googlevideo URLs expire after a few hours.
+/// googlevideo URLs expire after a few hours, so streams are kept for at most `StreamCache.maxAge`.
 struct StreamResolver: Sendable {
     static let maxHeight = 1080
 
@@ -84,6 +100,11 @@ struct StreamResolver: Sendable {
     var clients: [StreamClient] = StreamClient.resolveOrder
 
     func resolve(videoID: String) async throws -> Streams {
+        try await resolveWithMeta(videoID: videoID).streams
+    }
+
+    /// The streams, plus the title, channel, thumbnail and length from the same lookup.
+    func resolveWithMeta(videoID: String) async throws -> (streams: Streams, meta: VideoMeta) {
         var attempts: [String] = []
         for client in clients {
             do {
@@ -95,23 +116,11 @@ struct StreamResolver: Sendable {
                 }
                 guard let videoURL = pick.video.url else { continue }
                 Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): \(pick.description, privacy: .public)")
-                return Streams(videoID: videoID, videoURL: videoURL, audioURL: pick.audio?.url, client: client, description: pick.description)
+                let streams = Streams(videoID: videoID, videoURL: videoURL, audioURL: pick.audio?.url, client: client, description: pick.description)
+                return (streams, VideoMeta(info.video))
             } catch {
                 attempts.append("\(client.rawValue): \(error)")
                 Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): \(String(describing: error), privacy: .public)")
-            }
-        }
-        throw StreamResolverError.noPlayableStream(videoID: videoID, attempts: attempts)
-    }
-
-    /// Title, channel, thumbnail and length for a pasted link, from the first client that answers.
-    func meta(videoID: String) async throws -> VideoMeta {
-        var attempts: [String] = []
-        for client in clients {
-            do {
-                return VideoMeta(try await client.fetch(api, videoID: videoID).video)
-            } catch {
-                attempts.append("\(client.rawValue): \(error)")
             }
         }
         throw StreamResolverError.noPlayableStream(videoID: videoID, attempts: attempts)

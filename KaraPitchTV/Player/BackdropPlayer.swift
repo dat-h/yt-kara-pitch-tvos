@@ -1,30 +1,48 @@
 import AVFoundation
+import Observation
 import os
 
-/// A muted, looping video shown behind a karaoke video whose background is keyed out.
-@MainActor
+/// The song's music video, muted and looping behind a karaoke video whose background is keyed out.
+@MainActor @Observable
 final class BackdropPlayer {
-    /// Proof of concept: a short clip, looped.
-    static let videoID = "IXbnzEHZDPg"
-
     let player = AVPlayer()
-    private let resolver: StreamResolver
-    private var loading: Task<Void, Never>?
-    private var endObserver: (any NSObjectProtocol)?
-    private var wanted = false
+    /// The prepared video has frames to show; until then the karaoke video plays as it is.
+    private(set) var isReady = false
+    /// The music video prepared or being prepared.
+    private(set) var videoID: String?
 
-    init(resolver: StreamResolver) {
-        self.resolver = resolver
+    @ObservationIgnored private var wanted = false
+    @ObservationIgnored private var loading: Task<Void, Never>?
+    @ObservationIgnored private var statusObservation: NSKeyValueObservation?
+    @ObservationIgnored private var endObserver: (any NSObjectProtocol)?
+
+    init() {
         player.isMuted = true
         player.preventsDisplaySleepDuringVideoPlayback = false
         // Loops by seeking back at the end. AVPlayerLooper never starts on these remote streams.
         player.actionAtItemEnd = .none
     }
 
-    /// Plays the backdrop, resolving it first if it hasn't been or its URL went stale.
-    func start() {
+    /// Loads `streams` (a music video's) in the background, replacing whatever was prepared.
+    func prepare(_ streams: Streams) {
+        guard streams.videoID != videoID else { return }
+        stop()
+        videoID = streams.videoID
+        loading = Task {
+            do {
+                let item = try await Self.makeItem(streams)
+                guard !Task.isCancelled, videoID == streams.videoID else { return }
+                install(item)
+                Logger.backdrop.notice("backdrop \(streams.videoID, privacy: .public): \(streams.description, privacy: .public)")
+            } catch {
+                Logger.backdrop.error("backdrop \(streams.videoID, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    /// Plays the prepared video, now or as soon as it's loaded.
+    func play() {
         wanted = true
-        if player.currentItem == nil || player.currentItem?.status == .failed { load() }
         player.play()
     }
 
@@ -33,26 +51,34 @@ final class BackdropPlayer {
         player.pause()
     }
 
-    private func load() {
-        guard loading == nil else { return }
-        loading = Task {
-            defer { loading = nil }
-            do {
-                let streams = try await resolver.resolve(videoID: Self.videoID)
-                let item = try await Self.makeItem(streams)
-                endObserver.map(NotificationCenter.default.removeObserver)
-                endObserver = NotificationCenter.default.addObserver(
-                    forName: AVPlayerItem.didPlayToEndTimeNotification, object: item, queue: .main
-                ) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.player.seek(to: .zero) }
-                }
-                player.replaceCurrentItem(with: item)
-                Logger.backdrop.notice("backdrop \(Self.videoID, privacy: .public): \(streams.description, privacy: .public)")
-                if wanted { player.play() }
-            } catch {
-                Logger.backdrop.error("backdrop load failed: \(String(describing: error), privacy: .public)")
+    /// Drops the prepared video.
+    func stop() {
+        loading?.cancel()
+        loading = nil
+        wanted = false
+        statusObservation = nil
+        endObserver.map(NotificationCenter.default.removeObserver)
+        endObserver = nil
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        isReady = false
+        videoID = nil
+    }
+
+    private func install(_ item: AVPlayerItem) {
+        endObserver = NotificationCenter.default.addObserver(forName: AVPlayerItem.didPlayToEndTimeNotification, object: item, queue: .main) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.player.seek(to: .zero) }
+        }
+        statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+            let ready = item.status == .readyToPlay
+            Task { @MainActor in
+                guard let self, self.player.currentItem === item else { return }
+                self.isReady = ready
             }
         }
+        player.replaceCurrentItem(with: item)
+        if wanted { player.play() }
     }
 
     /// The video track alone, in a composition like `KaraPlayer`'s: a plain `AVPlayerItem` of these
@@ -60,6 +86,12 @@ final class BackdropPlayer {
     private static func makeItem(_ streams: Streams) async throws -> AVPlayerItem {
         let options: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": streams.userAgent]]
         let asset = AVURLAsset(url: streams.videoURL, options: options)
+        // A very long video can take minutes to open; give up like a song would.
+        let timeout = Task {
+            try await Task.sleep(for: KaraPlayer.loadTimeout)
+            asset.cancelLoading()
+        }
+        defer { timeout.cancel() }
         guard let track = try await asset.loadTracks(withMediaType: .video).first else { throw PlayerError.missingTrack }
         let duration = try await asset.load(.duration)
         let composition = AVMutableComposition()

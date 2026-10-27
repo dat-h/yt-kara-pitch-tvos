@@ -30,7 +30,7 @@ struct RouterTests {
         init(searchFails: Bool = false) {
             let ids = Atomic(0)
             let store = QueueStore(
-                resolveMeta: { url in VideoMeta(title: "Title of \(url)", uploader: nil, thumb: nil, durationSec: 100) },
+                check: { url, given in given ?? VideoMeta(title: "Title of \(url)", uploader: nil, thumb: nil, durationSec: 100) },
                 newID: { "e\(ids.add(1, ordering: .relaxed).oldValue)" }
             )
             self.store = store
@@ -79,11 +79,11 @@ struct RouterTests {
         #expect(e["uploader"] == nil && e["thumb"] == nil && e["error"] == nil)
     }
 
-    @Test func addFromSearchIsReadyAtOnce() async throws {
+    @Test func addFromSearchShowsItsDetailsWhileChecking() async throws {
         let f = Fixture()
         let r = await f.send("POST", "/api/queue", json: #"{"url":"\#(link)","title":"Found","channel":"Chan","thumb":"t.jpg","durationSec":180}"#)
         let e = try object(r)
-        #expect(e["status"] as? String == "READY")
+        #expect(e["status"] as? String == "RESOLVING")
         #expect(e["title"] as? String == "Found")
         #expect(e["uploader"] as? String == "Chan")
         #expect(e["durationSec"] as? Int == 180)

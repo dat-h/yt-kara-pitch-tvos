@@ -184,9 +184,12 @@ function row(e, i, n) {
   const chip = li.querySelector(".key");
   if (e.presetKey) chip.textContent = `Key ${keyLabel(e.presetKey)}`; else chip.remove();
   const st = li.querySelector(".status");
-  if (e.status === "RESOLVING") { st.className = "status resolving"; st.textContent = "Loading"; }
-  else if (e.status === "ERROR") { st.className = "status error"; st.textContent = "Can't play"; st.title = e.error || ""; }
+  if (e.status === "RESOLVING") { st.className = "status resolving"; st.textContent = "Checking"; }
+  else if (e.status === "ERROR") { st.className = "status error"; st.textContent = "Can't play"; }
   else st.remove();
+  // Why it can't play, so the singer can pick another video.
+  li.querySelector(".reason").textContent = e.status === "ERROR" ? `${e.error || "Unknown error"}. Pick another video.` : "";
+  li.querySelector(".mv").textContent = musicVideoLabel(e);
 
   const up = li.querySelector(".up"), down = li.querySelector(".down");
   up.disabled = i === 0;
@@ -198,6 +201,16 @@ function row(e, i, n) {
   };
   li.querySelector(".edit").onclick = () => openEdit(e);
   return li;
+}
+
+// What plays behind the song (the TV keeps the same wording in QueueEntry.musicVideoLabel).
+function musicVideoLabel(e) {
+  switch (e.musicVideoStatus) {
+    case "SEARCHING": return "Finding the music video…";
+    case "FOUND": return e.musicVideo ? `🎬 ${e.musicVideo.title}` : "";
+    case "NONE": return "No music video";
+    default: return "";
+  }
 }
 
 // ---------- edit ----------

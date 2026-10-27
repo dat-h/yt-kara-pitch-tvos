@@ -13,6 +13,9 @@ struct UpNextCard: View {
                 .font(.system(size: 144, weight: .black)).foregroundStyle(Theme.text).lineLimit(1).padding(.top, 24)
             Text(entry.title).font(.system(size: 52)).foregroundStyle(Theme.textDim).lineLimit(2).multilineTextAlignment(.center)
                 .padding(.top, 16)
+            if let label = entry.musicVideoLabel {
+                Text(label).font(.system(size: 32)).foregroundStyle(Theme.textDim).lineLimit(1).padding(.top, 16)
+            }
             KeyChip(key: entry.presetKey, big: true).padding(.top, 40)
             Text("Starting in \(secondsLeft)").font(.system(size: 60, weight: .bold)).foregroundStyle(Theme.orange).padding(.top, 72)
             // The focused button turns Select into "start now"; it's styled as the hint text.

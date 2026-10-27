@@ -25,8 +25,9 @@ final class KaraSession {
     let store: QueueStore
     let player = KaraPlayer()
     let reactions = ReactionPlayer()
-    let backdrop: BackdropPlayer
-    /// Songs play over the backdrop, with their flat background keyed out.
+    /// The song's music video, behind the karaoke video.
+    let backdrop = BackdropPlayer()
+    /// Songs with a music video play over it, with their flat background keyed out.
     private(set) var backgroundVideoOn = true
     private(set) var phase = Phase.idle
     /// Mirrors `store.state` for the screens.
@@ -45,6 +46,9 @@ final class KaraSession {
 
     @ObservationIgnored private let api: InnerTubeAPI
     @ObservationIgnored private let resolver: StreamResolver
+    @ObservationIgnored private let streamCache: StreamCache
+    /// The queue entry whose music video the backdrop is getting ready.
+    @ObservationIgnored private var backdropEntryID: String?
     @ObservationIgnored private var isActive = false
     @ObservationIgnored private var startNowRequested = false
     @ObservationIgnored private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -54,13 +58,29 @@ final class KaraSession {
 
     init(api: InnerTubeAPI = InnerTubeAPI()) {
         let resolver = StreamResolver(api: api)
+        let cache = StreamCache()
+        let finder = MusicVideoFinder(api: api, resolver: resolver, cache: cache)
         self.api = api
         self.resolver = resolver
-        backdrop = BackdropPlayer(resolver: resolver)
-        store = QueueStore { url in
-            guard let id = YouTubeURL.videoID(of: url) else { throw StreamResolverError.noPlayableStream(videoID: url, attempts: []) }
-            return try await resolver.meta(videoID: id)
-        }
+        streamCache = cache
+        store = QueueStore(
+            check: { url, given in
+                guard let id = YouTubeURL.videoID(of: url) else { throw CheckFailure(reason: "That isn't a YouTube video link") }
+                do {
+                    let (streams, meta) = try await resolver.resolveWithMeta(videoID: id)
+                    await cache.store(streams)
+                    // A search result's details are what the person picked; fill in what it lacks.
+                    guard let given else { return meta }
+                    return VideoMeta(
+                        title: given.title, uploader: given.uploader ?? meta.uploader, thumb: given.thumb ?? meta.thumb,
+                        durationSec: given.durationSec > 0 ? given.durationSec : meta.durationSec)
+                } catch let error as StreamResolverError {
+                    Logger.resolver.notice("check failed: \(error.description, privacy: .public)")
+                    throw CheckFailure(reason: error.reason)
+                }
+            },
+            findMusicVideo: { entry in await finder.find(for: entry) }
+        )
     }
 
     func start() {
@@ -78,6 +98,12 @@ final class KaraSession {
                 }
             },
             Task { await loop() },
+            Task { [store] in
+                for await entry in store.failed {
+                    let title = entry.title == QueueEntry.failedTitle ? "That video" : "“\(entry.title)”"
+                    self.notify("\(title) can't be played: \(entry.error ?? "unknown error"). Pick another.")
+                }
+            },
             Task { [store] in
                 for await entry in store.added {
                     self.rememberSinger(entry.singer)
@@ -130,7 +156,36 @@ final class KaraSession {
 
     /// The backdrop plays only behind a song, with background video on, while the app is active.
     private func updateBackdrop() {
-        if case .playing = phase, backgroundVideoOn, isActive { backdrop.start() } else { backdrop.pause() }
+        if case .playing = phase, backgroundVideoOn, isActive { backdrop.play() } else { backdrop.pause() }
+    }
+
+    /// Gets `entry`'s music video ready to play, or clears the backdrop if it has none (yet).
+    private func prepareBackdrop(for entry: QueueEntry) {
+        guard entry.id != backdropEntryID else { return }
+        guard let video = entry.musicVideo, let id = YouTubeURL.videoID(of: video.url) else {
+            backdropEntryID = nil
+            backdrop.stop()
+            return
+        }
+        backdropEntryID = entry.id
+        Task { [resolver, streamCache] in
+            let streams: Streams
+            if let cached = await streamCache.fresh(id) {
+                streams = cached
+            } else if let resolved = try? await resolver.resolve(videoID: id) {
+                await streamCache.store(resolved)
+                streams = resolved
+            } else {
+                return
+            }
+            guard backdropEntryID == entry.id else { return }
+            backdrop.prepare(streams)
+        }
+    }
+
+    private func clearBackdrop() {
+        backdropEntryID = nil
+        backdrop.stop()
     }
 
     func skip(notice: String) {
@@ -214,7 +269,7 @@ final class KaraSession {
             let outcome = await play(entry)
             if outcome == .released { await store.requeueNowPlaying() } else { await store.finishNowPlaying() }
             phase = .idle
-            updateBackdrop()
+            clearBackdrop()
         }
     }
 
@@ -227,6 +282,7 @@ final class KaraSession {
                 return false
             }
             phase = .upNext(next, secondsLeft: left)
+            prepareBackdrop(for: next)
             let deadline = ContinuousClock.now + .seconds(1)
             while ContinuousClock.now < deadline, !startNowRequested, isActive {
                 try? await Task.sleep(for: .milliseconds(50))
@@ -238,6 +294,7 @@ final class KaraSession {
 
     private func play(_ entry: QueueEntry) async -> Outcome {
         phase = .playing(entry)
+        prepareBackdrop(for: entry)
         updateBackdrop()
         var key = entry.presetKey
         var startAt = 0.0
@@ -245,7 +302,13 @@ final class KaraSession {
             let streams: Streams
             do {
                 guard let id = YouTubeURL.videoID(of: entry.url) else { throw StreamResolverError.noPlayableStream(videoID: entry.url, attempts: []) }
-                streams = try await resolver.resolve(videoID: id)
+                // Checked when it was queued; re-resolved once the URLs may have expired.
+                if attempt == 0, let cached = await streamCache.fresh(id) {
+                    streams = cached
+                } else {
+                    streams = try await resolver.resolve(videoID: id)
+                    await streamCache.store(streams)
+                }
             } catch {
                 Logger.player.error("resolve failed for \(entry.url, privacy: .public): \(String(describing: error), privacy: .public)")
                 notify("Couldn't load “\(entry.title)”. Skipping it.")
@@ -279,4 +342,10 @@ final class KaraSession {
         waiters = []
         ready.forEach { $0.resume() }
     }
+}
+
+/// Why a queued video can't be played, in words for the people at the party.
+struct CheckFailure: Error, CustomStringConvertible {
+    let reason: String
+    var description: String { reason }
 }

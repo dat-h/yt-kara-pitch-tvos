@@ -18,22 +18,31 @@ actor QueueStore {
 
     private(set) var state = QueueState()
 
-    /// Each entry once it is READY: at once for search results, after the lookup for pasted links.
+    /// Each entry once its check finds it playable (READY).
     nonisolated let added: AsyncStream<QueueEntry>
     private let addedContinuation: AsyncStream<QueueEntry>.Continuation
+    /// Each entry whose check finds it can't be played (ERROR).
+    nonisolated let failed: AsyncStream<QueueEntry>
+    private let failedContinuation: AsyncStream<QueueEntry>.Continuation
 
-    private let resolveMeta: @Sendable (String) async throws -> VideoMeta
+    private let check: @Sendable (_ url: String, _ given: VideoMeta?) async throws -> VideoMeta
+    private let findMusicVideo: (@Sendable (QueueEntry) async -> MusicVideo?)?
     private let newID: @Sendable () -> String
     private var watchers: [UUID: AsyncStream<QueueState>.Continuation] = [:]
     private var resolving: [String: Task<Void, Never>] = [:]
 
+    /// `check` finds out whether `url` can be played and returns its details (`given` is what a
+    /// search result already knows). `findMusicVideo` looks for the song's music video once it's READY.
     init(
-        resolveMeta: @escaping @Sendable (_ url: String) async throws -> VideoMeta,
+        check: @escaping @Sendable (_ url: String, _ given: VideoMeta?) async throws -> VideoMeta,
+        findMusicVideo: (@Sendable (QueueEntry) async -> MusicVideo?)? = nil,
         newID: @escaping @Sendable () -> String = { String(UUID().uuidString.prefix(8)).lowercased() }
     ) {
-        self.resolveMeta = resolveMeta
+        self.check = check
+        self.findMusicVideo = findMusicVideo
         self.newID = newID
         (added, addedContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(16))
+        (failed, failedContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(16))
     }
 
     /// The current state, then every change.
@@ -46,19 +55,15 @@ actor QueueStore {
         return stream
     }
 
-    /// Adds `url` (already normalized). Without `meta` its title, thumbnail and length are resolved
-    /// in the background; with it (a search result already carries them) the entry is READY at once.
+    /// Adds `url` (already normalized) and checks in the background that it can be played. A search
+    /// result's `meta` shows at once; a pasted link shows "Loading…" until the check fills it in.
     @discardableResult
     func add(url: String, singer: String?, key: Int?, meta: VideoMeta? = nil) throws -> QueueEntry {
         guard state.queue.count < Self.maxQueue else { throw QueueError.full }
-        let base = QueueEntry(id: newID(), url: url, singer: Self.clean(singer), presetKey: Key.clamp(key ?? 0))
-        let entry = meta.map { base.resolved(with: .success($0)) } ?? base
+        var entry = QueueEntry(id: newID(), url: url, singer: Self.clean(singer), presetKey: Key.clamp(key ?? 0))
+        if let meta { entry.show(meta) }
         commit { $0.queue.append(entry) }
-        if meta != nil {
-            addedContinuation.yield(entry)
-        } else {
-            resolving[entry.id] = Task { await resolve(entry.id, url: url) }
-        }
+        resolving[entry.id] = Task { [entry] in await resolve(entry.id, url: url, given: meta) }
         return entry
     }
 
@@ -122,19 +127,45 @@ actor QueueStore {
         }
     }
 
-    private func resolve(_ id: String, url: String) async {
+    private func resolve(_ id: String, url: String, given: VideoMeta?) async {
         let meta: Result<VideoMeta, any Error>
         do {
-            meta = .success(try await resolveMeta(url))
+            meta = .success(try await check(url, given))
         } catch {
             meta = .failure(error)
         }
         resolving[id] = nil
         // Removed while resolving: it stays removed.
         guard let index = state.queue.firstIndex(where: { $0.id == id }) else { return }
-        let entry = state.queue[index].resolved(with: meta)
+        var entry = state.queue[index].resolved(with: meta)
+        guard entry.status == .ready else {
+            commit { $0.queue[index] = entry }
+            failedContinuation.yield(entry)
+            return
+        }
+        if let findMusicVideo {
+            entry.musicVideoStatus = .searching
+            resolving["\(id)/music"] = Task { [entry] in
+                let found = await findMusicVideo(entry)
+                self.attach(found, to: id)
+            }
+        }
         commit { $0.queue[index] = entry }
-        if entry.status == .ready { addedContinuation.yield(entry) }
+        addedContinuation.yield(entry)
+    }
+
+    /// Records the music video lookup's answer, wherever the entry is by now.
+    private func attach(_ video: MusicVideo?, to id: String) {
+        resolving["\(id)/music"] = nil
+        func apply(_ entry: inout QueueEntry) {
+            entry.musicVideo = video
+            entry.musicVideoStatus = video == nil ? MusicVideoStatus.none : .found
+        }
+        if let index = state.queue.firstIndex(where: { $0.id == id }) {
+            commit { apply(&$0.queue[index]) }
+        } else if state.nowPlaying?.id == id {
+            commit { apply(&$0.nowPlaying!) }
+        }
     }
 
     private func commit(_ change: (inout QueueState) -> Void) {
@@ -151,17 +182,22 @@ actor QueueStore {
 }
 
 private extension QueueEntry {
+    mutating func show(_ meta: VideoMeta) {
+        title = meta.title
+        uploader = meta.uploader
+        thumb = meta.thumb
+        durationSec = meta.durationSec
+    }
+
     func resolved(with meta: Result<VideoMeta, any Error>) -> QueueEntry {
         var entry = self
         switch meta {
         case let .success(m):
-            entry.title = m.title
-            entry.uploader = m.uploader
-            entry.thumb = m.thumb
-            entry.durationSec = m.durationSec
+            entry.show(m)
             entry.status = .ready
         case let .failure(error):
-            entry.title = "Couldn't load this video"
+            // A search result keeps its title; a pasted link has none yet.
+            if entry.title == QueueEntry.loadingTitle { entry.title = QueueEntry.failedTitle }
             entry.status = .error
             entry.error = String(describing: error)
         }

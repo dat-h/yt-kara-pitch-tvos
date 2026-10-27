@@ -31,11 +31,20 @@ struct QueueStoreTests {
         var description: String { "blocked" }
     }
 
-    private func store(_ resolve: @escaping @Sendable (String) async throws -> VideoMeta = { VideoMeta(title: "Title \($0)", uploader: "up", thumb: nil, durationSec: 200) })
-        -> QueueStore
-    {
+    /// A store whose check calls `resolve`, except that a search result's details are kept.
+    private func store(
+        _ resolve: @escaping @Sendable (String) async throws -> VideoMeta = { VideoMeta(title: "Title \($0)", uploader: "up", thumb: nil, durationSec: 200) },
+        findMusicVideo: (@Sendable (QueueEntry) async -> MusicVideo?)? = nil
+    ) -> QueueStore {
         let ids = IDs()
-        return QueueStore(resolveMeta: resolve, newID: ids.make)
+        return QueueStore(
+            check: { url, given in
+                let found = try await resolve(url)
+                return given ?? found
+            },
+            findMusicVideo: findMusicVideo,
+            newID: ids.make
+        )
     }
 
     private func ids(_ store: QueueStore) async -> [String] { await store.state.queue.map(\.id) }
@@ -59,18 +68,59 @@ struct QueueStoreTests {
         #expect(e.singer.count == 40)
     }
 
-    @Test func addWithMetaIsReadyWithoutLookup() async throws {
+    @Test func addWithMetaShowsItAtOnceAndIsStillChecked() async throws {
         let lookups = Atomic(0)
+        let gate = Gate()
         let s = store { _ in
             lookups.add(1, ordering: .relaxed)
-            return VideoMeta(title: "x", uploader: nil, thumb: nil, durationSec: 1)
+            return await gate.wait()
         }
         let e = try await s.add(url: "u1", singer: "Kim", key: -2, meta: VideoMeta(title: "Found", uploader: "chan", thumb: "thumb", durationSec: 180))
+        #expect(e.status == .resolving)
+        #expect(e.title == "Found")
+        #expect(e.durationSec == 180)
+        await gate.open(VideoMeta(title: "x", uploader: nil, thumb: nil, durationSec: 1))
         await s.settle()
-        #expect(e.status == .ready)
+        #expect(await s.state.queue.first?.status == .ready)
         #expect(await s.state.queue.first?.title == "Found")
-        #expect(await s.state.queue.first?.durationSec == 180)
-        #expect(lookups.load(ordering: .relaxed) == 0)
+        #expect(lookups.load(ordering: .relaxed) == 1)
+    }
+
+    @Test func aSearchResultThatCantPlayKeepsItsTitleAndIsAnnounced() async throws {
+        let s = store { _ in throw Blocked() }
+        try await s.add(url: "u1", singer: nil, key: nil, meta: VideoMeta(title: "Found", uploader: nil, thumb: nil, durationSec: 1))
+        await s.settle()
+        let e = try #require(await s.state.queue.first)
+        #expect(e.status == .error)
+        #expect(e.title == "Found")
+        #expect(e.error == "blocked")
+        #expect(e.musicVideoStatus == nil)
+        for await failed in s.failed {
+            #expect(failed.id == e.id)
+            break
+        }
+    }
+
+    @Test func findsTheMusicVideoOnceReady() async throws {
+        let video = MusicVideo(url: "https://www.youtube.com/watch?v=mv", title: "Official Video", channel: "Band")
+        let gate = Gate()
+        let s = store(findMusicVideo: { entry in
+            _ = await gate.wait()
+            return entry.url == "u1" ? video : nil
+        })
+        try await s.add(url: "u1", singer: nil, key: nil)
+        try await s.add(url: "u2", singer: nil, key: nil)
+        while await s.state.queue.contains(where: { $0.musicVideoStatus != .searching }) { await Task.yield() }
+        #expect(await s.state.queue.allSatisfy { $0.status == .ready })
+
+        // The first song starts before its lookup finishes; the answer still reaches it.
+        _ = await s.startNext()
+        await gate.open(VideoMeta(title: "", uploader: nil, thumb: nil, durationSec: 0))
+        await s.settle()
+        #expect(await s.state.nowPlaying?.musicVideoStatus == .found)
+        #expect(await s.state.nowPlaying?.musicVideo == video)
+        #expect(await s.state.queue.first?.musicVideoStatus == MusicVideoStatus.none)
+        #expect(await s.state.queue.first?.musicVideo == nil)
     }
 
     @Test func announcesEntriesOnceReady() async throws {
@@ -90,7 +140,7 @@ struct QueueStoreTests {
             seen.append(entry.title)
             if seen.count == 2 { break }
         }
-        #expect(seen == ["From search", "Title u1"])
+        #expect(Set(seen) == ["From search", "Title u1"])
     }
 
     @Test func resolveFailureMarksError() async throws {
@@ -177,7 +227,8 @@ struct QueueStoreTests {
     }
 
     @Test func updatesStreamsCurrentStateThenChanges() async throws {
-        let s = store()
+        let gate = Gate()
+        let s = store { _ in await gate.wait() }
         let updates = await s.updates()
         try await s.add(url: "u1", singer: nil, key: nil, meta: VideoMeta(title: "t", uploader: nil, thumb: nil, durationSec: 1))
         var versions: [Int64] = []
@@ -186,5 +237,7 @@ struct QueueStoreTests {
             if state.queue.count == 1 { break }
         }
         #expect(versions.last == 1)
+        await gate.open(VideoMeta(title: "t", uploader: nil, thumb: nil, durationSec: 1))
+        await s.settle()
     }
 }
