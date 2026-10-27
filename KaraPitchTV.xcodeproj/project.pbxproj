@@ -1,0 +1,385 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		KP0000000000000000000101 /* SmartTubeIOSCore in Frameworks */ = {isa = PBXBuildFile; productRef = KP0000000000000000000901 /* SmartTubeIOSCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		KP0000000000000000000201 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = KP0000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = KP0000000000000000000501;
+			remoteInfo = KaraPitchTV;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		KP0000000000000000000301 /* KaraPitchTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KaraPitchTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		KP0000000000000000000302 /* KaraPitchTVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KaraPitchTVTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		KP0000000000000000000401 /* KaraPitchTV */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KaraPitchTV;
+			sourceTree = "<group>";
+		};
+		KP0000000000000000000402 /* KaraPitchTVTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KaraPitchTVTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		KP0000000000000000000601 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				KP0000000000000000000101 /* SmartTubeIOSCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		KP0000000000000000000602 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		KP0000000000000000000701 = {
+			isa = PBXGroup;
+			children = (
+				KP0000000000000000000401 /* KaraPitchTV */,
+				KP0000000000000000000402 /* KaraPitchTVTests */,
+				KP0000000000000000000702 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		KP0000000000000000000702 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				KP0000000000000000000301 /* KaraPitchTV.app */,
+				KP0000000000000000000302 /* KaraPitchTVTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		KP0000000000000000000501 /* KaraPitchTV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = KP0000000000000000000B02 /* Build configuration list for PBXNativeTarget "KaraPitchTV" */;
+			buildPhases = (
+				KP0000000000000000000801 /* Sources */,
+				KP0000000000000000000601 /* Frameworks */,
+				KP0000000000000000000811 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				KP0000000000000000000401 /* KaraPitchTV */,
+			);
+			name = KaraPitchTV;
+			packageProductDependencies = (
+				KP0000000000000000000901 /* SmartTubeIOSCore */,
+			);
+			productName = KaraPitchTV;
+			productReference = KP0000000000000000000301 /* KaraPitchTV.app */;
+			productType = "com.apple.product-type.application";
+		};
+		KP0000000000000000000502 /* KaraPitchTVTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = KP0000000000000000000B03 /* Build configuration list for PBXNativeTarget "KaraPitchTVTests" */;
+			buildPhases = (
+				KP0000000000000000000802 /* Sources */,
+				KP0000000000000000000602 /* Frameworks */,
+				KP0000000000000000000812 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				KP0000000000000000000C01 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				KP0000000000000000000402 /* KaraPitchTVTests */,
+			);
+			name = KaraPitchTVTests;
+			productName = KaraPitchTVTests;
+			productReference = KP0000000000000000000302 /* KaraPitchTVTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		KP0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2700;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					KP0000000000000000000501 = {
+						CreatedOnToolsVersion = 27.1;
+					};
+					KP0000000000000000000502 = {
+						CreatedOnToolsVersion = 27.1;
+						TestTargetID = KP0000000000000000000501;
+					};
+				};
+			};
+			buildConfigurationList = KP0000000000000000000B01 /* Build configuration list for PBXProject "KaraPitchTV" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = KP0000000000000000000701;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				KP0000000000000000000D01 /* XCLocalSwiftPackageReference "Vendor/SmartTubeIOS/SmartTubeIOS" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = KP0000000000000000000702 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				KP0000000000000000000501 /* KaraPitchTV */,
+				KP0000000000000000000502 /* KaraPitchTVTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		KP0000000000000000000811 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		KP0000000000000000000812 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		KP0000000000000000000801 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		KP0000000000000000000802 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		KP0000000000000000000C01 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = KP0000000000000000000501 /* KaraPitchTV */;
+			targetProxy = KP0000000000000000000201 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		KP0000000000000000000A01 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = appletvos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TVOS_DEPLOYMENT_TARGET = 18.0;
+			};
+			name = Debug;
+		};
+		KP0000000000000000000A02 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = appletvos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TVOS_DEPLOYMENT_TARGET = 18.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		KP0000000000000000000A03 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5T82NE8EX4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Kara Pitch";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ytkara.tv.greg;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Debug;
+		};
+		KP0000000000000000000A04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5T82NE8EX4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Kara Pitch";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ytkara.tv.greg;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+			};
+			name = Release;
+		};
+		KP0000000000000000000A05 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ytkara.tv.greg.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KaraPitchTV.app/KaraPitchTV";
+			};
+			name = Debug;
+		};
+		KP0000000000000000000A06 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ytkara.tv.greg.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KaraPitchTV.app/KaraPitchTV";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		KP0000000000000000000B01 /* Build configuration list for PBXProject "KaraPitchTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				KP0000000000000000000A01 /* Debug */,
+				KP0000000000000000000A02 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		KP0000000000000000000B02 /* Build configuration list for PBXNativeTarget "KaraPitchTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				KP0000000000000000000A03 /* Debug */,
+				KP0000000000000000000A04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		KP0000000000000000000B03 /* Build configuration list for PBXNativeTarget "KaraPitchTVTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				KP0000000000000000000A05 /* Debug */,
+				KP0000000000000000000A06 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		KP0000000000000000000D01 /* XCLocalSwiftPackageReference "Vendor/SmartTubeIOS/SmartTubeIOS" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/SmartTubeIOS/SmartTubeIOS;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		KP0000000000000000000901 /* SmartTubeIOSCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SmartTubeIOSCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = KP0000000000000000000001 /* Project object */;
+}
