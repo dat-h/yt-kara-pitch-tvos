@@ -4,6 +4,7 @@ import os
 
 /// Media URLs for one playback. `audioURL` is nil when `videoURL` already carries the audio.
 struct Streams: Sendable {
+    let videoID: String
     let videoURL: URL
     let audioURL: URL?
     let client: StreamClient
@@ -94,7 +95,7 @@ struct StreamResolver: Sendable {
                 }
                 guard let videoURL = pick.video.url else { continue }
                 Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): \(pick.description, privacy: .public)")
-                return Streams(videoURL: videoURL, audioURL: pick.audio?.url, client: client, description: pick.description)
+                return Streams(videoID: videoID, videoURL: videoURL, audioURL: pick.audio?.url, client: client, description: pick.description)
             } catch {
                 attempts.append("\(client.rawValue): \(error)")
                 Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): \(String(describing: error), privacy: .public)")

@@ -29,6 +29,12 @@ final class KaraPlayer {
     let player = AVPlayer()
     private(set) var snapshot = PlayerSnapshot()
     private(set) var key = 0
+    /// Frames of the current item, for drawing it with its background keyed out.
+    @ObservationIgnored private(set) var videoOutput: AVPlayerItemVideoOutput?
+    /// The current video's background, sampled once per video. A resume of the same video (after
+    /// its URLs expired) keeps it.
+    @ObservationIgnored private(set) var background = BackgroundSample.pending
+    @ObservationIgnored private var backgroundVideoID: String?
 
     @ObservationIgnored private var tapContext = PitchTapContext()
     @ObservationIgnored private var current: CheckedContinuation<Outcome, Never>?
@@ -60,8 +66,18 @@ final class KaraPlayer {
             return .error(httpCode: code, position: startAt, message: error.localizedDescription)
         }
         guard !isReleased else { return .released }
+        if streams.videoID != backgroundVideoID {
+            backgroundVideoID = streams.videoID
+            background = .pending
+        }
+        let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferMetalCompatibilityKey as String: true,
+        ])
+        item.add(output)
         return await withCheckedContinuation { continuation in
             current = continuation
+            videoOutput = output
             observe(item)
             player.replaceCurrentItem(with: item)
             if startAt > 0 {
@@ -79,6 +95,13 @@ final class KaraPlayer {
     }
 
     func adjustKey(_ delta: Int) { setKey(key + delta) }
+
+    /// Records the one sample taken of the current video's background.
+    func setBackground(_ sample: BackgroundSample) {
+        guard background == .pending else { return }
+        background = sample
+        Logger.player.notice("background of \(self.backgroundVideoID ?? "?", privacy: .public): \(String(describing: sample), privacy: .public)")
+    }
 
     func togglePause() {
         if player.rate == 0 { player.play() } else { player.pause() }
@@ -119,6 +142,7 @@ final class KaraPlayer {
         current = nil
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
+        videoOutput = nil
         player.pause()
         player.replaceCurrentItem(with: nil)
         publish()

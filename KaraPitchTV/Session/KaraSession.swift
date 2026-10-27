@@ -25,6 +25,9 @@ final class KaraSession {
     let store: QueueStore
     let player = KaraPlayer()
     let reactions = ReactionPlayer()
+    let backdrop: BackdropPlayer
+    /// Songs play over the backdrop, with their flat background keyed out.
+    private(set) var backgroundVideoOn = true
     private(set) var phase = Phase.idle
     /// Mirrors `store.state` for the screens.
     private(set) var queue = QueueState()
@@ -53,6 +56,7 @@ final class KaraSession {
         let resolver = StreamResolver(api: api)
         self.api = api
         self.resolver = resolver
+        backdrop = BackdropPlayer(resolver: resolver)
         store = QueueStore { url in
             guard let id = YouTubeURL.videoID(of: url) else { throw StreamResolverError.noPlayableStream(videoID: url, attempts: []) }
             return try await resolver.meta(videoID: id)
@@ -103,6 +107,7 @@ final class KaraSession {
     func setActive(_ active: Bool) {
         isActive = active
         if active { player.reattach() } else { player.release() }
+        updateBackdrop()
         wake()
     }
 
@@ -115,6 +120,17 @@ final class KaraSession {
     func adjustKey(_ delta: Int) {
         player.adjustKey(delta)
         notify(Key.label(player.key))
+    }
+
+    func toggleBackgroundVideo() {
+        backgroundVideoOn.toggle()
+        updateBackdrop()
+        notify(backgroundVideoOn ? "Background video on" : "Background video off")
+    }
+
+    /// The backdrop plays only behind a song, with background video on, while the app is active.
+    private func updateBackdrop() {
+        if case .playing = phase, backgroundVideoOn, isActive { backdrop.start() } else { backdrop.pause() }
     }
 
     func skip(notice: String) {
@@ -198,6 +214,7 @@ final class KaraSession {
             let outcome = await play(entry)
             if outcome == .released { await store.requeueNowPlaying() } else { await store.finishNowPlaying() }
             phase = .idle
+            updateBackdrop()
         }
     }
 
@@ -221,6 +238,7 @@ final class KaraSession {
 
     private func play(_ entry: QueueEntry) async -> Outcome {
         phase = .playing(entry)
+        updateBackdrop()
         var key = entry.presetKey
         var startAt = 0.0
         for attempt in 0...1 {

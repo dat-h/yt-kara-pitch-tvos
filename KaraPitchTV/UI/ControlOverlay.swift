@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Opened with a swipe down during a song: Search, Skip, Restart and a key stepper. Closes on Back,
+/// Opened with a swipe down during a song: Search, Skip, Restart, background video and a key stepper. Closes on Back,
 /// or by itself after `idleTimeout` without input.
 struct ControlOverlay: View {
     static let idleTimeout: Duration = .seconds(8)
@@ -8,7 +8,7 @@ struct ControlOverlay: View {
     let session: KaraSession
     let onClose: () -> Void
 
-    private enum Control: Hashable { case search, skip, restart, keyDown, keyUp }
+    private enum Control: Hashable { case search, skip, restart, background, keyDown, keyUp }
     @FocusState private var focused: Control?
     /// Bumped on every input; the close timer restarts whenever it changes.
     @State private var lastInput = 0
@@ -26,6 +26,10 @@ struct ControlOverlay: View {
                 }
             }
             .focused($focused, equals: .restart)
+            Button("Background", systemImage: session.backgroundVideoOn ? "sparkles.tv.fill" : "sparkles.tv") {
+                touch { session.toggleBackgroundVideo() }
+            }
+            .focused($focused, equals: .background)
             Spacer().frame(width: 40)
             Button("Key down", systemImage: "minus") { touch { session.adjustKey(-1) } }
                 .labelStyle(.iconOnly)

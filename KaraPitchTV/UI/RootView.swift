@@ -34,7 +34,11 @@ private struct PlayerScreen: View {
     var body: some View {
         let snapshot = session.player.snapshot
         ZStack {
-            PlayerHost(player: session.player.player, takesFocus: !controlsOpen, onAction: handle).ignoresSafeArea()
+            PlayerHost(
+                player: session.player, backdrop: session.backdrop.player, backgroundOn: session.backgroundVideoOn,
+                takesFocus: !controlsOpen, onAction: handle
+            )
+            .ignoresSafeArea()
             if snapshot.durationMs == 0 { LoadingCard(entry: entry).ignoresSafeArea() }
             if snapshot.paused && snapshot.durationMs > 0 { NoticeView(text: "Paused") }
             Ticker(state: session.queue).frame(maxHeight: .infinity, alignment: .top).ignoresSafeArea(edges: .top)

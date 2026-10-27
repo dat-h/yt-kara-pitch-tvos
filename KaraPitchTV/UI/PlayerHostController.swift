@@ -7,8 +7,9 @@ enum RemoteAction: Equatable {
     case keyUp, keyDown, seekBack, seekForward, skip, togglePause, back, openControls
 }
 
-/// Full-screen `AVPlayerLayer` that reads the Siri Remote as `UIPress` types, so directional
-/// *clicks* stay apart from swipes. Holding right for `holdToSkip` skips instead of seeking.
+/// Full-screen player that reads the Siri Remote as `UIPress` types, so directional *clicks* stay
+/// apart from swipes. Holding right for `holdToSkip` skips instead of seeking. With background
+/// video on, the karaoke video is drawn keyed over the backdrop instead of in its `AVPlayerLayer`.
 final class PlayerHostController: UIViewController {
     static let holdToSkip: Duration = .seconds(1)
 
@@ -22,13 +23,19 @@ final class PlayerHostController: UIViewController {
             updateFocusIfNeeded()
         }
     }
-    private let player: AVPlayer
+    /// The backdrop shows through the karaoke video's background.
+    var backgroundOn = false {
+        didSet { (viewIfLoaded as? PlayerLayerView)?.backgroundOn = backgroundOn }
+    }
+    private let player: KaraPlayer
+    private let backdrop: AVPlayer
     /// Bumped on each right press, so a hold timer can tell whether it's still the same press.
     private var rightPress = 0
     private var rightHeldToSkip = false
 
-    init(player: AVPlayer) {
+    init(player: KaraPlayer, backdrop: AVPlayer) {
         self.player = player
+        self.backdrop = backdrop
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -36,10 +43,8 @@ final class PlayerHostController: UIViewController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override func loadView() {
-        let view = PlayerLayerView()
-        view.playerLayer.player = player
-        view.playerLayer.videoGravity = .resizeAspect
-        view.backgroundColor = .black
+        let view = PlayerLayerView(player: player, backdrop: backdrop)
+        view.backgroundOn = backgroundOn
         // Swipes on the clickpad, not clicks: the indirect touch type keeps them apart from presses.
         let swipe = UISwipeGestureRecognizer(target: self, action: #selector(swipedDown))
         swipe.direction = .down
@@ -108,26 +113,69 @@ final class PlayerHostController: UIViewController {
     }
 }
 
+/// The backdrop at the bottom, then the karaoke video either plain or keyed.
 private final class PlayerLayerView: UIView {
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
-    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    private let backdropLayer = AVPlayerLayer()
+    private let playerLayer = AVPlayerLayer()
+    private let keyedView: KeyedVideoView
     var focusable = true
     override var canBecomeFocused: Bool { focusable }
+
+    var backgroundOn = false {
+        didSet {
+            backdropLayer.isHidden = !backgroundOn
+            playerLayer.isHidden = backgroundOn
+            keyedView.isHidden = !backgroundOn
+            keyedView.isShown = backgroundOn
+        }
+    }
+
+    init(player: KaraPlayer, backdrop: AVPlayer) {
+        keyedView = KeyedVideoView(player: player)
+        super.init(frame: .zero)
+        backgroundColor = .black
+        backdropLayer.player = backdrop
+        backdropLayer.videoGravity = .resizeAspectFill
+        backdropLayer.isHidden = true
+        playerLayer.player = player.player
+        playerLayer.videoGravity = .resizeAspect
+        layer.addSublayer(backdropLayer)
+        layer.addSublayer(playerLayer)
+        keyedView.isHidden = true
+        addSubview(keyedView)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        backdropLayer.frame = bounds
+        playerLayer.frame = bounds
+        CATransaction.commit()
+        keyedView.frame = bounds
+    }
 }
 
 struct PlayerHost: UIViewControllerRepresentable {
-    let player: AVPlayer
+    let player: KaraPlayer
+    let backdrop: AVPlayer
+    var backgroundOn = false
     var takesFocus = true
     let onAction: (RemoteAction) -> Void
 
     func makeUIViewController(context: Context) -> PlayerHostController {
-        let controller = PlayerHostController(player: player)
+        let controller = PlayerHostController(player: player, backdrop: backdrop)
         controller.onAction = onAction
+        controller.backgroundOn = backgroundOn
         return controller
     }
 
     func updateUIViewController(_ controller: PlayerHostController, context: Context) {
         controller.onAction = onAction
         controller.takesFocus = takesFocus
+        controller.backgroundOn = backgroundOn
     }
 }
