@@ -41,6 +41,9 @@ final class KaraPlayer {
     @ObservationIgnored private var streams: Streams?
     @ObservationIgnored private var observers: [any NSObjectProtocol] = []
     @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var rateObservation: NSKeyValueObservation?
+    /// Called whenever the song starts or stops moving: play, pause, restart, the end.
+    @ObservationIgnored var onRateChange: () -> Void = {}
     /// Set while the app is off screen, so a song that finishes loading then doesn't start.
     @ObservationIgnored private var isReleased = false
 
@@ -49,7 +52,13 @@ final class KaraPlayer {
         timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(value: 1, timescale: 2), queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
+        rateObservation = player.observe(\.rate) { [weak self] _, _ in
+            Task { @MainActor in self?.onRateChange() }
+        }
     }
+
+    /// The song is moving (not paused, not between songs).
+    var isMoving: Bool { player.rate != 0 }
 
     /// Plays `streams` from `startAt` seconds at `startKey`, and returns once the song is over.
     func play(_ streams: Streams, startKey: Int, startAt: Double = 0) async -> Outcome {

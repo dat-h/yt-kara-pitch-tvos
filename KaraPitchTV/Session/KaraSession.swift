@@ -85,6 +85,8 @@ final class KaraSession {
 
     func start() {
         guard tasks.isEmpty else { return }
+        // The music video pauses and resumes with the song.
+        player.onRateChange = { [weak self] in self?.updateBackdrop() }
         tasks = [
             Task { [store] in
                 for await state in await store.updates() {
@@ -154,9 +156,16 @@ final class KaraSession {
         notify(backgroundVideoOn ? "Background video on" : "Background video off")
     }
 
-    /// The backdrop plays only behind a song, with background video on, while the app is active.
     private func updateBackdrop() {
-        if case .playing = phase, backgroundVideoOn, isActive { backdrop.play() } else { backdrop.pause() }
+        let play = Self.backdropPlays(phase: phase, backgroundOn: backgroundVideoOn, active: isActive, songMoving: player.isMoving)
+        if play { backdrop.play() } else { backdrop.pause() }
+    }
+
+    /// The backdrop plays only behind a song that's moving (not paused), with background video on,
+    /// while the app is active.
+    static func backdropPlays(phase: Phase, backgroundOn: Bool, active: Bool, songMoving: Bool) -> Bool {
+        guard case .playing = phase else { return false }
+        return backgroundOn && active && songMoving
     }
 
     /// Gets `entry`'s music video ready to play, or clears the backdrop if it has none (yet).
