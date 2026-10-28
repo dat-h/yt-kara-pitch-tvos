@@ -67,29 +67,46 @@ struct StreamPick: Equatable, Sendable {
 
 enum StreamResolverError: Error, CustomStringConvertible {
     case noPlayableStream(videoID: String, attempts: [String])
+    /// YouTube is refusing this network for a while (see `NetworkBlock`).
+    case networkBlocked(videoID: String, attempts: [String])
 
     var description: String {
         switch self {
         case let .noPlayableStream(videoID, attempts):
             "No playable MP4 stream for \(videoID): \(attempts.joined(separator: "; "))"
+        case let .networkBlocked(videoID, attempts):
+            "YouTube is blocking this network (\(videoID)): \(attempts.joined(separator: "; "))"
         }
     }
 
-    /// Why the video can't be played, for the people at the party.
+    /// Why the video can't be played and what to do, for the people at the party.
     var reason: String {
         switch self {
+        case .networkBlocked:
+            "YouTube is limiting this network for a while. Try again in a few minutes"
         case let .noPlayableStream(_, attempts):
-            if !attempts.isEmpty && attempts.allSatisfy({ $0.contains("signInRequired") }) {
-                "YouTube needs sign-in for this video (age-restricted)"
+            if Self.allRefusedSignIn(attempts) {
+                // An age-restricted video, or the first sign of a block: one refusal can't tell.
+                "YouTube wants a sign-in for this video (it may be age-restricted). Pick another video"
             } else if attempts.contains(where: { $0.contains("no direct") }) {
-                "YouTube doesn't offer a playable version"
+                "YouTube doesn't offer a playable version. Pick another video"
             } else if attempts.contains(where: { $0.contains("unavailable") }) {
-                "This video is unavailable"
+                "This video is unavailable. Pick another video"
             } else {
-                "Couldn't reach YouTube"
+                "Couldn't reach YouTube. Try again in a moment"
             }
         }
     }
+
+    static func allRefusedSignIn(_ attempts: [String]) -> Bool {
+        !attempts.isEmpty && attempts.allSatisfy { $0.contains("signInRequired") }
+    }
+}
+
+/// What one InnerTube client answered: the formats and the video's details.
+struct ClientAnswer: Sendable {
+    let formats: [VideoFormat]
+    let meta: VideoMeta
 }
 
 /// googlevideo URLs expire after a few hours, so streams are kept for at most `StreamCache.maxAge`.
@@ -98,6 +115,10 @@ struct StreamResolver: Sendable {
 
     let api: InnerTubeAPI
     var clients: [StreamClient] = StreamClient.resolveOrder
+    /// Shared by every copy of this resolver, so all lookups learn about a block at once.
+    var block = NetworkBlock()
+    /// Replaces the InnerTube call, for tests.
+    var fetch: (@Sendable (StreamClient, String) async throws -> ClientAnswer)?
 
     func resolve(videoID: String) async throws -> Streams {
         try await resolveWithMeta(videoID: videoID).streams
@@ -108,22 +129,37 @@ struct StreamResolver: Sendable {
         var attempts: [String] = []
         for client in clients {
             do {
-                let info = try await client.fetch(api, videoID: videoID)
-                guard let pick = Self.pick(info.formats) else {
+                let answer = try await (fetch ?? defaultFetch)(client, videoID)
+                guard let pick = Self.pick(answer.formats) else {
                     attempts.append("\(client.rawValue): no direct avc1/mp4a")
-                    Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): no usable formats of \(info.formats.count)")
+                    Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): no usable formats of \(answer.formats.count)")
                     continue
                 }
                 guard let videoURL = pick.video.url else { continue }
                 Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): \(pick.description, privacy: .public)")
                 let streams = Streams(videoID: videoID, videoURL: videoURL, audioURL: pick.audio?.url, client: client, description: pick.description)
-                return (streams, VideoMeta(info.video))
+                await block.succeeded()
+                return (streams, answer.meta)
             } catch {
                 attempts.append("\(client.rawValue): \(error)")
                 Logger.resolver.notice("\(videoID, privacy: .public) \(client.rawValue, privacy: .public): \(String(describing: error), privacy: .public)")
+                if case APIError.ipBlocked = error { await block.blocked() }
+                // Blocked: the other clients get the same answer, so don't add to the traffic.
+                if await block.isBlocked { throw StreamResolverError.networkBlocked(videoID: videoID, attempts: attempts) }
             }
         }
+        if StreamResolverError.allRefusedSignIn(attempts) {
+            await block.refusedSignIn(videoID)
+            if await block.isBlocked { throw StreamResolverError.networkBlocked(videoID: videoID, attempts: attempts) }
+        }
         throw StreamResolverError.noPlayableStream(videoID: videoID, attempts: attempts)
+    }
+
+    private var defaultFetch: @Sendable (StreamClient, String) async throws -> ClientAnswer {
+        { [api] client, videoID in
+            let info = try await client.fetch(api, videoID: videoID)
+            return ClientAnswer(formats: info.formats, meta: VideoMeta(info.video))
+        }
     }
 
     /// The best `avc1` video-only MP4 up to 1080p plus the best AAC audio-only M4A, else the best

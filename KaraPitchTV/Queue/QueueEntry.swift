@@ -12,11 +12,14 @@ enum MusicVideoStatus: String, Codable, Sendable {
     case none = "NONE"
 }
 
-/// The song's own music video, played behind the karaoke video.
+/// The song's own music video, played behind the karaoke video. Only searched for when the song is
+/// queued; it's resolved when the song is about to play, trying `fallbacks` if it won't.
 struct MusicVideo: Codable, Equatable, Sendable {
     let url: String
     let title: String
     var channel: String?
+    /// The runners-up's watch URLs, best first.
+    var fallbacks: [String]?
 }
 
 struct QueueEntry: Codable, Equatable, Identifiable, Sendable {

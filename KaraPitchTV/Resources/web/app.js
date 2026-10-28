@@ -187,8 +187,8 @@ function row(e, i, n) {
   if (e.status === "RESOLVING") { st.className = "status resolving"; st.textContent = "Checking"; }
   else if (e.status === "ERROR") { st.className = "status error"; st.textContent = "Can't play"; }
   else st.remove();
-  // Why it can't play, so the singer can pick another video.
-  li.querySelector(".reason").textContent = e.status === "ERROR" ? `${e.error || "Unknown error"}. Pick another video.` : "";
+  // Why it can't play, and what to do about it.
+  li.querySelector(".reason").textContent = e.status === "ERROR" ? `${e.error || "Unknown error"}.` : "";
   li.querySelector(".mv").textContent = musicVideoLabel(e);
 
   const up = li.querySelector(".up"), down = li.querySelector(".down");

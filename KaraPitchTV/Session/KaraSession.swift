@@ -59,7 +59,7 @@ final class KaraSession {
     init(api: InnerTubeAPI = InnerTubeAPI()) {
         let resolver = StreamResolver(api: api)
         let cache = StreamCache()
-        let finder = MusicVideoFinder(api: api, resolver: resolver, cache: cache)
+        let finder = MusicVideoFinder(api: api, block: resolver.block)
         self.api = api
         self.resolver = resolver
         streamCache = cache
@@ -103,7 +103,7 @@ final class KaraSession {
             Task { [store] in
                 for await entry in store.failed {
                     let title = entry.title == QueueEntry.failedTitle ? "That video" : "“\(entry.title)”"
-                    self.notify("\(title) can't be played: \(entry.error ?? "unknown error"). Pick another.")
+                    self.notify("\(title) can't be played: \(entry.error ?? "unknown error").")
                 }
             },
             Task { [store] in
@@ -168,26 +168,31 @@ final class KaraSession {
         return backgroundOn && active && songMoving
     }
 
-    /// Gets `entry`'s music video ready to play, or clears the backdrop if it has none (yet).
+    /// Gets `entry`'s music video ready to play (its first match that resolves), or clears the
+    /// backdrop if it has none (yet).
     private func prepareBackdrop(for entry: QueueEntry) {
         guard entry.id != backdropEntryID else { return }
-        guard let video = entry.musicVideo, let id = YouTubeURL.videoID(of: video.url) else {
+        guard let video = entry.musicVideo else {
             backdropEntryID = nil
             backdrop.stop()
             return
         }
         backdropEntryID = entry.id
+        let ids = ([video.url] + (video.fallbacks ?? [])).compactMap(YouTubeURL.videoID(of:))
         Task { [resolver, streamCache] in
-            let streams: Streams
-            if let cached = await streamCache.fresh(id) {
-                streams = cached
-            } else if let resolved = try? await resolver.resolve(videoID: id) {
-                await streamCache.store(resolved)
-                streams = resolved
-            } else {
-                return
+            var streams: Streams?
+            for id in ids {
+                if let cached = await streamCache.fresh(id) {
+                    streams = cached
+                } else if let resolved = try? await resolver.resolve(videoID: id) {
+                    await streamCache.store(resolved)
+                    streams = resolved
+                }
+                if streams != nil { break }
+                // YouTube is refusing everything: asking about the runners-up only adds traffic.
+                if await resolver.block.isBlocked { break }
             }
-            guard backdropEntryID == entry.id else { return }
+            guard let streams, backdropEntryID == entry.id else { return }
             backdrop.prepare(streams)
         }
     }

@@ -33,14 +33,18 @@ struct StreamCheckLiveTests {
         report.append("karaoke: \(meta.title) (\(meta.durationSec) s)")
         report.append("search: \(MusicVideoMatcher.searchQuery(fromKaraokeTitle: meta.title))")
 
-        let finder = MusicVideoFinder(api: api, resolver: resolver, cache: StreamCache())
+        let finder = MusicVideoFinder(api: api, block: resolver.block)
         let candidates = try await finder.candidates(for: entry)
         for (i, c) in candidates.enumerated() { report.append("  \(i + 1). \(c.id) \(c.title) · \(c.channel) · \(c.durationSec) s") }
-        if let video = await finder.find(for: entry) {
-            report.append("✅ music video: \(video.title) · \(video.channel ?? "") · \(video.url)")
-        } else {
-            report.append("➖ no music video: the song would play as plain karaoke")
+        // What the app does when the song is about to play: the first that resolves.
+        for c in candidates {
+            if (try? await resolver.resolve(videoID: c.id)) != nil {
+                report.append("✅ music video: \(c.title) · \(c.channel) · \(MusicVideoFinder.watchURL(c.id))")
+                return
+            }
+            report.append("   \(c.id) doesn't resolve, trying the next")
         }
+        report.append("➖ no music video: the song would play as plain karaoke")
     }
 
     static let loadTimeout: Duration = .seconds(20)
